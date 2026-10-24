@@ -12,6 +12,9 @@ a developer machine:
                          because databricks-connect (installed from the dev group)
                          governs their versions and can require outside the runtime's
                          patch line. See ``req`` (CONNECT_GOVERNED) / issues #16,#19,#20.
+  * Security floors    - a package whose runtime version is below a known-vulnerable
+                         cut-off is pinned to ``>=FLOOR,<NEXT_MAJOR`` instead (grpcio
+                         < 1.84.1 trusts the compromised eMudhra CAs). See SECURITY_FLOOR.
   * databricks-connect - pinned to ``~=MAJOR.MINOR.0`` and emitted into
                          ``[dependency-groups].dev`` of the pyproject (installed by
                          default under uv); omitted from constraints.txt so the pip
@@ -95,6 +98,24 @@ DROP_BY_ENV = {
 # metadata (and wheel availability) picks the version in-range. See req() / issue #16.
 CONNECT_GOVERNED = {"databricks-sdk", "grpcio", "grpcio-status"}
 
+# Minimum versions required for security, whatever the runtime lists. When the
+# runtime's version is below the floor, the pin becomes ``>=FLOOR,<NEXT_MAJOR`` (the
+# same upper bound ~= would give); at or above the floor the normal pin is kept.
+#
+# grpcio: releases before 1.84.1 bundle a roots.pem that still trusts emSign ECC Root
+# CA - G3, the parent of the eMudhra intermediate CAs whose private keys were
+# compromised. grpc.ssl_channel_credentials() with no explicit roots, which is how
+# databricks-connect opens its Spark Connect channel, uses that bundled file rather
+# than the OS store, so a forged certificate for the workspace host would be accepted.
+# Fixed upstream in grpc/grpc#43699 and released in grpcio 1.84.1 (backport #43700).
+# 1.84.1 requires Python >= 3.10; no Python 3.9 environment pins grpcio today.
+SECURITY_FLOOR = {"grpcio": "1.84.1"}
+
+
+def _release(version):
+    """Leading numeric release of a version, as a tuple of ints ('1.84.1rc1' -> (1, 84, 1))."""
+    return tuple(int(p) for p in re.match(r"\d+(?:\.\d+)*", version).group(0).split("."))
+
 
 def norm(name):
     # Strip the '*' footnote marker the release-notes tables append to some package
@@ -125,8 +146,14 @@ def req(name, version):
     wheel). Widening to ``MAJOR.MINOR`` (``~=0.67`` → ``>=0.67,<1``) keeps the runtime's
     version as the floor while letting databricks-connect's metadata and wheel
     availability pick the exact version in-range. See issues #16, #19, #20.
+
+    A package in ``SECURITY_FLOOR`` whose version is below its floor is rendered as
+    ``>=FLOOR,<NEXT_MAJOR`` (``grpcio 1.60.0`` -> ``grpcio>=1.84.1,<2``).
     """
     version = version.split("+", 1)[0]
+    floor = SECURITY_FLOOR.get(name)
+    if floor and _release(version) < _release(floor):
+        return f"{name}>={floor},<{_release(floor)[0] + 1}"
     if name in CONNECT_GOVERNED:
         version = ".".join(version.split(".")[:2])
     return f"{name}~={version}"
