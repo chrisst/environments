@@ -117,6 +117,13 @@ class SecurityFloorTest(unittest.TestCase):
         # than the runtime pins; grpcio-status 1.x accepts a newer grpcio.
         self.assertEqual(req("grpcio-status", "1.60.0"), "grpcio-status~=1.60")
 
+    def test_typing_extensions_raised_for_grpcio(self):
+        # grpcio 1.84.1 requires typing-extensions~=4.12; older runtime pins would make
+        # the floored grpcio unresolvable.
+        self.assertEqual(req("typing-extensions", "4.4.0"), "typing-extensions>=4.12,<5")
+        self.assertEqual(req("typing-extensions", "4.11.0"), "typing-extensions>=4.12,<5")
+        self.assertEqual(req("typing-extensions", "4.12.2"), "typing-extensions~=4.12.2")
+
     def test_floor_reaches_both_artifacts(self):
         pkgs = {"grpcio": "1.67.0", "grpcio-status": "1.67.0"}
         for out in (build_pyproject(pkgs, "serverless-v4", "3.12.3"),

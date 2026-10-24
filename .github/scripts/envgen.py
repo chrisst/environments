@@ -111,6 +111,11 @@ CONNECT_GOVERNED = {"databricks-sdk", "grpcio", "grpcio-status"}
 # 1.84.1 requires Python >= 3.10; no Python 3.9 environment pins grpcio today.
 SECURITY_FLOOR = {"grpcio": "1.84.1"}
 
+# Floors that a SECURITY_FLOOR release itself requires, so runtimes listing an older
+# version stay resolvable. grpcio 1.84.1 requires typing-extensions~=4.12; DBR 13.3 -
+# 16.4 and serverless-v1 - v3 list typing-extensions 4.3 - 4.11.
+FLOOR_DEPENDENCIES = {"typing-extensions": "4.12"}
+
 
 def _release(version):
     """Leading numeric release of a version, as a tuple of ints ('1.84.1rc1' -> (1, 84, 1))."""
@@ -147,11 +152,12 @@ def req(name, version):
     version as the floor while letting databricks-connect's metadata and wheel
     availability pick the exact version in-range. See issues #16, #19, #20.
 
-    A package in ``SECURITY_FLOOR`` whose version is below its floor is rendered as
-    ``>=FLOOR,<NEXT_MAJOR`` (``grpcio 1.60.0`` -> ``grpcio>=1.84.1,<2``).
+    A package in ``SECURITY_FLOOR`` or ``FLOOR_DEPENDENCIES`` whose version is below
+    its floor is rendered as ``>=FLOOR,<NEXT_MAJOR`` (``grpcio 1.60.0`` ->
+    ``grpcio>=1.84.1,<2``, ``typing-extensions 4.4.0`` -> ``typing-extensions>=4.12,<5``).
     """
     version = version.split("+", 1)[0]
-    floor = SECURITY_FLOOR.get(name)
+    floor = SECURITY_FLOOR.get(name) or FLOOR_DEPENDENCIES.get(name)
     if floor and _release(version) < _release(floor):
         return f"{name}>={floor},<{_release(floor)[0] + 1}"
     if name in CONNECT_GOVERNED:
