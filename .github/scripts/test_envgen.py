@@ -103,8 +103,8 @@ class ReqTest(unittest.TestCase):
 
 class SecurityFloorTest(unittest.TestCase):
     def test_grpcio_below_floor_raised(self):
-        # grpcio < 1.84.1 trusts the compromised eMudhra CAs, so every runtime still
-        # listing an older grpcio gets the floor, keeping the <2 bound ~= would give.
+        # Every runtime listing grpcio below 1.84.1 gets the floor, with the <2 bound
+        # that ~= would give.
         for v in ("1.48.2", "1.60.0", "1.67.0", "1.76.0", "1.84.0", "1.84.0+db1"):
             self.assertEqual(req("grpcio", v), "grpcio>=1.84.1,<2", v)
 
@@ -113,13 +113,13 @@ class SecurityFloorTest(unittest.TestCase):
         self.assertEqual(req("grpcio", "1.85.0"), "grpcio~=1.85")
 
     def test_grpcio_status_not_floored(self):
-        # grpcio-status is not vulnerable, and raising it would pull a newer protobuf
-        # than the runtime pins; grpcio-status 1.x accepts a newer grpcio.
+        # grpcio-status has no floor. Raising it would pull a newer protobuf than the
+        # runtime pins, and grpcio-status 1.x already accepts a newer grpcio.
         self.assertEqual(req("grpcio-status", "1.60.0"), "grpcio-status~=1.60")
 
     def test_typing_extensions_raised_for_grpcio(self):
-        # grpcio 1.84.1 requires typing-extensions~=4.12; older runtime pins would make
-        # the floored grpcio unresolvable.
+        # grpcio 1.84.1 requires typing-extensions~=4.12, so older runtime pins would
+        # make the floored grpcio unresolvable.
         self.assertEqual(req("typing-extensions", "4.4.0"), "typing-extensions>=4.12,<5")
         self.assertEqual(req("typing-extensions", "4.11.0"), "typing-extensions>=4.12,<5")
         self.assertEqual(req("typing-extensions", "4.12.2"), "typing-extensions~=4.12.2")
